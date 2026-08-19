@@ -739,9 +739,11 @@ class ChatStream(ObjectProxy):
                 self._process_complete_response()
             else:
                 # Handle cleanup for other exceptions during stream iteration
-                self._ensure_cleanup()
                 if self._span and self._span.is_recording():
+                    self._span.set_attribute(ERROR_TYPE, e.__class__.__name__)
+                    self._span.record_exception(e)
                     self._span.set_status(Status(StatusCode.ERROR, str(e)))
+                self._ensure_cleanup(error=True)
             raise
         else:
             self._process_item(chunk)
@@ -755,9 +757,11 @@ class ChatStream(ObjectProxy):
                 self._process_complete_response()
             else:
                 # Handle cleanup for other exceptions during stream iteration
-                self._ensure_cleanup()
                 if self._span and self._span.is_recording():
+                    self._span.set_attribute(ERROR_TYPE, e.__class__.__name__)
+                    self._span.record_exception(e)
                     self._span.set_status(Status(StatusCode.ERROR, str(e)))
+                self._ensure_cleanup(error=True)
             raise
         else:
             self._process_item(chunk)
@@ -834,7 +838,7 @@ class ChatStream(ObjectProxy):
         self._cleanup_completed = True
 
     @dont_throw
-    def _ensure_cleanup(self):
+    def _ensure_cleanup(self, error=False):
         """Thread-safe cleanup method that handles different cleanup scenarios"""
         with self._cleanup_lock:
             if self._cleanup_completed:
@@ -849,7 +853,8 @@ class ChatStream(ObjectProxy):
 
                 # Set span status and close it
                 if self._span and self._span.is_recording():
-                    self._span.set_status(Status(StatusCode.OK))
+                    if not error:
+                        self._span.set_status(Status(StatusCode.OK))
                     self._span.end()
                     logger.debug("ChatStream span closed successfully")
 
