@@ -1572,8 +1572,8 @@ def test_chat_streaming_not_consumed(instrument_legacy, span_exporter, log_expor
     open_ai_span = spans[0]
     assert open_ai_span.name == "openai.chat"
 
-    # Verify span was properly closed
-    assert open_ai_span.status.status_code == StatusCode.OK
+    # Verify span was properly closed but not marked as successful since it was incomplete
+    assert open_ai_span.status.status_code == StatusCode.UNSET
     assert open_ai_span.end_time is not None
     assert open_ai_span.end_time > open_ai_span.start_time
 
@@ -1663,7 +1663,7 @@ def test_chat_streaming_partial_consumption(instrument_legacy, span_exporter, lo
     open_ai_span = spans[0]
     assert open_ai_span.name == "openai.chat"
 
-    assert open_ai_span.status.status_code == StatusCode.OK
+    assert open_ai_span.status.status_code == StatusCode.UNSET
     assert open_ai_span.end_time is not None
 
     assert open_ai_span.attributes.get(
@@ -1745,8 +1745,8 @@ def test_chat_streaming_exception_during_consumption(instrument_legacy, span_exp
     open_ai_span = spans[0]
     assert open_ai_span.name == "openai.chat"
 
-    # Verify span was properly closed (status should be OK since exception was in user code, not in our iterator)
-    assert open_ai_span.status.status_code == StatusCode.OK
+    # Verify span was properly closed (status should be UNSET since exception was in user code causing incomplete stream)
+    assert open_ai_span.status.status_code == StatusCode.UNSET
     assert open_ai_span.end_time is not None
 
     # Should have events from the consumed chunks before exception
@@ -1788,5 +1788,5 @@ def test_chat_streaming_memory_leak_prevention(instrument_legacy, span_exporter,
     # Verify span is properly closed
     span = final_spans[-1]
     assert span.name == "openai.chat"
-    assert span.status.status_code == StatusCode.OK
+    assert span.status.status_code == StatusCode.UNSET
     assert span.end_time is not None
