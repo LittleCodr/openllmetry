@@ -224,17 +224,24 @@ def _build_from_streaming_response(span, request_kwargs, response):
         try:
             if hasattr(response, "close"):
                 response.close()
+        except Exception as e:
+            if span.is_recording():
+                span.record_exception(e)
+            logger.debug("Error closing completion response: %s", e)
         finally:
-            _set_response_attributes(span, complete_response)
-            _set_token_usage(span, request_kwargs, complete_response)
+            try:
+                _set_response_attributes(span, complete_response)
+                _set_token_usage(span, request_kwargs, complete_response)
 
-            if should_emit_events():
-                _emit_streaming_response_events(complete_response)
-            else:
-                if should_send_prompts():
-                    _set_completions(span, complete_response.get("choices"))
-
-            span.end()
+                if should_emit_events():
+                    _emit_streaming_response_events(complete_response)
+                else:
+                    if should_send_prompts():
+                        _set_completions(span, complete_response.get("choices"))
+            except Exception as e:
+                logger.debug("Error processing completion attributes/events: %s", e)
+            finally:
+                span.end()
 
 
 @dont_throw
@@ -256,17 +263,24 @@ async def _abuild_from_streaming_response(span, request_kwargs, response):
         try:
             if hasattr(response, "close"):
                 await response.close()
+        except Exception as e:
+            if span.is_recording():
+                span.record_exception(e)
+            logger.debug("Error closing completion response: %s", e)
         finally:
-            _set_response_attributes(span, complete_response)
-            _set_token_usage(span, request_kwargs, complete_response)
+            try:
+                _set_response_attributes(span, complete_response)
+                _set_token_usage(span, request_kwargs, complete_response)
 
-            if should_emit_events():
-                _emit_streaming_response_events(complete_response)
-            else:
-                if should_send_prompts():
-                    _set_completions(span, complete_response.get("choices"))
-
-            span.end()
+                if should_emit_events():
+                    _emit_streaming_response_events(complete_response)
+                else:
+                    if should_send_prompts():
+                        _set_completions(span, complete_response.get("choices"))
+            except Exception as e:
+                logger.debug("Error processing completion attributes/events: %s", e)
+            finally:
+                span.end()
 
 
 def _emit_streaming_response_events(complete_response):

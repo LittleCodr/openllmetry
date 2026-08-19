@@ -1755,6 +1755,41 @@ def test_chat_streaming_exception_during_consumption(instrument_legacy, span_exp
 
 
 @pytest.mark.vcr
+def test_chat_streaming_iterator_exception(instrument_legacy, span_exporter, log_exporter, openai_client):
+    """Test that streaming responses handle exceptions raised by the iterator properly"""
+
+    response = openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Tell me a short story"}],
+        stream=True,
+    )
+
+    from unittest.mock import patch
+    
+    # Mock the underlying iterator's __next__ to raise an exception
+    with patch.object(response.__wrapped__, '__next__', side_effect=Exception("Mock iterator exception")):
+        try:
+            next(iter(response))
+        except Exception as e:
+            assert "Mock iterator exception" in str(e)
+
+    spans = span_exporter.get_finished_spans()
+
+    assert len(spans) == 1
+    open_ai_span = spans[0]
+    assert open_ai_span.name == "openai.chat"
+
+    # Verify span was properly closed with ERROR status
+    assert open_ai_span.status.status_code == StatusCode.ERROR
+    assert "Mock iterator exception" in open_ai_span.status.description
+    assert open_ai_span.end_time is not None
+
+    # Verify exception event was recorded
+    events = open_ai_span.events
+    assert any(event.name == "exception" for event in events)
+
+
+@pytest.mark.vcr
 def test_chat_streaming_memory_leak_prevention(instrument_legacy, span_exporter, log_exporter, openai_client):
     """Test that creating many streams without consuming them doesn't cause memory leaks"""
     import gc
