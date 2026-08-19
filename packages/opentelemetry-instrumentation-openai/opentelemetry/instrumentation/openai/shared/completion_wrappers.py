@@ -208,6 +208,7 @@ def _set_output_messages(span, choices):
 @dont_throw
 def _build_from_streaming_response(span, request_kwargs, response):
     complete_response = {"choices": [], "model": "", "id": ""}
+    error_occurred = False
     try:
         for item in response:
             yield item
@@ -215,6 +216,7 @@ def _build_from_streaming_response(span, request_kwargs, response):
             
         span.set_status(Status(StatusCode.OK))
     except Exception as e:
+        error_occurred = True
         if span.is_recording():
             span.set_attribute(ERROR_TYPE, e.__class__.__name__)
             span.record_exception(e)
@@ -227,6 +229,9 @@ def _build_from_streaming_response(span, request_kwargs, response):
         except Exception as e:
             if span.is_recording():
                 span.record_exception(e)
+                if not error_occurred:
+                    span.set_attribute(ERROR_TYPE, e.__class__.__name__)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
             logger.debug("Error closing completion response: %s", e)
         finally:
             try:
@@ -247,6 +252,7 @@ def _build_from_streaming_response(span, request_kwargs, response):
 @dont_throw
 async def _abuild_from_streaming_response(span, request_kwargs, response):
     complete_response = {"choices": [], "model": "", "id": ""}
+    error_occurred = False
     try:
         async for item in response:
             yield item
@@ -254,6 +260,7 @@ async def _abuild_from_streaming_response(span, request_kwargs, response):
             
         span.set_status(Status(StatusCode.OK))
     except Exception as e:
+        error_occurred = True
         if span.is_recording():
             span.set_attribute(ERROR_TYPE, e.__class__.__name__)
             span.record_exception(e)
@@ -266,6 +273,9 @@ async def _abuild_from_streaming_response(span, request_kwargs, response):
         except Exception as e:
             if span.is_recording():
                 span.record_exception(e)
+                if not error_occurred:
+                    span.set_attribute(ERROR_TYPE, e.__class__.__name__)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
             logger.debug("Error closing completion response: %s", e)
         finally:
             try:
